@@ -33,7 +33,7 @@ variable "image_tag" {
 variable "image" {
   description = "Full Docker image path (override to use a custom registry)"
   type        = string
-  default     = "gcr.io/soulmate-platform/soulmate-api"
+  default     = "pgmenon/soulmate-api"
 }
 
 variable "cloud_run_cpu" {
