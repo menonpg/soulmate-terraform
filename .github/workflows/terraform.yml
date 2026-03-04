@@ -59,7 +59,7 @@ jobs:
             -var="region=${{ inputs.region }}" \
             -var="admin_email=${{ inputs.admin_email }}" \
             -var="enable_iap=${{ inputs.enable_iap }}" \
-            -var="soulmate_image=pgmenon/soulmate-api:latest" \
+            -var="image=pgmenon/soulmate-api:latest" \
             -out=tfplan
         continue-on-error: false
 
@@ -75,7 +75,7 @@ jobs:
             -var="region=${{ inputs.region }}" \
             -var="admin_email=${{ inputs.admin_email }}" \
             -var="enable_iap=${{ inputs.enable_iap }}" \
-            -var="soulmate_image=pgmenon/soulmate-api:latest"
+            -var="image=pgmenon/soulmate-api:latest"
 
       - name: Show Outputs
         if: inputs.action == 'apply'
