@@ -151,7 +151,9 @@ resource "google_sql_user" "soulmate" {
 resource "google_secret_manager_secret" "db_password" {
   secret_id  = "${var.app_name}-db-password"
   depends_on = [google_project_service.apis]
-  replication { auto {} }
+  replication {
+    auto {}
+  }
 }
 
 resource "google_secret_manager_secret_version" "db_password" {
@@ -162,7 +164,9 @@ resource "google_secret_manager_secret_version" "db_password" {
 resource "google_secret_manager_secret" "api_secret" {
   secret_id  = "${var.app_name}-api-secret"
   depends_on = [google_project_service.apis]
-  replication { auto {} }
+  replication {
+    auto {}
+  }
 }
 
 resource "random_password" "api_secret" {
