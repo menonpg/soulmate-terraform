@@ -8,7 +8,7 @@ on:
         required: true
         default: "google_cloud_run_v2_service.soulmate"
       module:
-        description: "Module folder (root | ingram-demo)"
+        description: "Module folder (root | enterprise-demo)"
         required: true
         default: "root"
       action:
@@ -45,8 +45,8 @@ jobs:
 
       - name: Select module dir
         run: |
-          if [ "${{ inputs.module }}" = "ingram-demo" ]; then
-            echo "TF_DIR=examples/ingram-demo" >> $GITHUB_ENV
+          if [ "${{ inputs.module }}" = "enterprise-demo" ]; then
+            echo "TF_DIR=examples/enterprise-demo" >> $GITHUB_ENV
           else
             echo "TF_DIR=." >> $GITHUB_ENV
           fi
