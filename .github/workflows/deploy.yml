@@ -59,6 +59,16 @@ jobs:
         run: terraform plan -target="${{ inputs.target }}" -out=tfplan
         working-directory: ${{ env.TF_DIR }}
 
+      - name: Terraform Import (if resource exists)
+        if: inputs.action == 'apply'
+        continue-on-error: true
+        run: |
+          # Import known pre-existing resources into state
+          if [ "${{ inputs.target }}" = "google_service_account.demo_agent" ]; then
+            terraform import google_service_account.demo_agent \
+              projects/soulmate-489217/serviceAccounts/soulmate-demo-agent@soulmate-489217.iam.gserviceaccount.com || true
+          fi
+
       - name: Terraform Apply (targeted)
         if: inputs.action == 'apply'
         run: terraform apply -target="${{ inputs.target }}" -auto-approve tfplan
