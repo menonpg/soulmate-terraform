@@ -70,8 +70,14 @@ jobs:
               projects/soulmate-489217/serviceAccounts/soulmate-demo-agent@soulmate-489217.iam.gserviceaccount.com || true
           fi
 
+      - name: Terraform Re-Plan after Import
+        if: inputs.action == 'apply'
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform plan -target="${{ inputs.target }}" -out=tfplan
+
       - name: Terraform Apply (targeted)
         if: inputs.action == 'apply'
+        working-directory: ${{ env.TF_DIR }}
         run: terraform apply -target="${{ inputs.target }}" -auto-approve tfplan
         working-directory: ${{ env.TF_DIR }}
 
