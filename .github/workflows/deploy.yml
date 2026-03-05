@@ -62,8 +62,9 @@ jobs:
       - name: Terraform Import (if resource exists)
         if: inputs.action == 'apply'
         continue-on-error: true
+        working-directory: ${{ env.TF_DIR }}
         run: |
-          # Import known pre-existing resources into state
+          # Import known pre-existing resources into state to avoid 409 errors
           if [ "${{ inputs.target }}" = "google_service_account.demo_agent" ]; then
             terraform import google_service_account.demo_agent \
               projects/soulmate-489217/serviceAccounts/soulmate-demo-agent@soulmate-489217.iam.gserviceaccount.com || true
