@@ -97,18 +97,42 @@ In [soulmate-terraform → Settings → Secrets](https://github.com/menonpg/soul
 Use GitHub Actions → **GCP Deploy** workflow.
 **Always plan first, then apply. One resource at a time.**
 
-| Step | Target | Notes |
-|------|--------|-------|
-| 1 | `google_project_service.apis` | ✅ Done — APIs enabled |
-| 2 | `google_service_account.demo_agent` | Next |
-| 3 | `google_project_iam_member.bq_user` | IAM binding |
-| 4 | `google_project_iam_member.bq_viewer` | IAM binding |
-| 5 | `google_cloud_run_v2_service.soulmate_api` | First real service |
-| 6 | `google_cloud_run_v2_service_iam_member.api_public` | Make it public |
-| 7 | `google_cloud_run_v2_service.analyst_agent` | Wait + verify step 5 first |
-| 8 | `google_cloud_run_v2_service.comms_agent` | |
-| 9 | `google_bigquery_dataset.demo` | |
-| 10 | `google_bigquery_table.sales` | |
+| Step | Target | Status | Notes |
+|------|--------|--------|-------|
+| 1 | `google_project_service.apis` | ✅ Done | APIs enabled |
+| 2 | `google_service_account.demo_agent` | ✅ Done | |
+| 3 | `google_project_iam_member.bq_user` | ✅ Done | |
+| 4 | `google_project_iam_member.bq_viewer` | ✅ Done | |
+| 5 | `google_cloud_run_v2_service.soulmate_api` | ✅ Done | Live: https://soulmate-api-hvky63ls3a-uc.a.run.app |
+| 6 | `google_cloud_run_v2_service_iam_member.api_public` | ✅ Done | Public, health check passing |
+| 7 | `google_cloud_run_v2_service.analyst_agent` | ⏳ Blocked | Needs pgmenon/soulmate-analyst Docker image built first |
+| 8 | `google_cloud_run_v2_service.comms_agent` | ⏳ Blocked | Needs pgmenon/soulmate-comms Docker image built first |
+| 9 | `google_bigquery_dataset.demo` | ✅ Done | dataset: soulmate_demo |
+| 10 | `google_bigquery_table.sales` | ✅ Done | table: q4_sales |
+
+## What's Blocking Steps 7 & 8
+
+The analyst and comms agents need their own Docker images:
+- `pgmenon/soulmate-analyst:latest` — SQL generation agent (Gemma 2B / Anthropic)
+- `pgmenon/soulmate-comms:latest` — email summary agent (Gemini / Anthropic)
+
+These need to be built as separate FastAPI services and pushed to Docker Hub.
+See next section for build plan.
+
+## Next Build: Agent Docker Images
+
+### soulmate-analyst
+- FastAPI service
+- Accepts: `POST /analyze { question: str }`
+- Flow: route question → generate SQL (Anthropic) → execute on BigQuery → return results + A2A handoff to comms
+- Env vars needed: `ANTHROPIC_API_KEY`, `GCP_PROJECT`, `COMMS_AGENT_URL`
+- Repo to create: `menonpg/soulmate-agents` (monorepo: analyst/ + comms/)
+
+### soulmate-comms
+- FastAPI service  
+- Accepts: `POST /summarize { data: dict, question: str }`
+- Flow: take BigQuery results → draft email summary (Anthropic) → return draft
+- Env vars needed: `ANTHROPIC_API_KEY`
 
 > ⚠️ Wait and verify each service is healthy before moving to the next.
 > Do not batch multiple Cloud Run services in one apply.
