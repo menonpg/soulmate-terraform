@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "Terraform resource to deploy (e.g. google_cloud_run_v2_service.soulmate)"
+        description: "Terraform resource to deploy"
         required: true
-        default: "google_cloud_run_v2_service.soulmate"
+        default: "google_cloud_run_v2_service.soulmate_api"
       module:
         description: "Module folder (root | enterprise-demo)"
         required: true
-        default: "root"
+        default: "enterprise-demo"
       action:
         description: "plan or apply"
         required: true
@@ -19,16 +19,19 @@ on:
         options: [plan, apply, destroy]
 
 env:
-  TF_VAR_project_id:   ${{ secrets.GCP_PROJECT_ID }}
-  TF_VAR_admin_email:  ${{ secrets.GCP_ADMIN_EMAIL }}
-  TF_VAR_region:       us-central1
+  TF_VAR_project_id:    ${{ secrets.GCP_PROJECT_ID }}
+  TF_VAR_admin_email:   ${{ secrets.GCP_ADMIN_EMAIL }}
+  TF_VAR_region:        us-central1
   TF_VAR_anthropic_key: ${{ secrets.TF_VAR_anthropic_key }}
 
 jobs:
   terraform:
     name: "${{ inputs.action }} → ${{ inputs.target }}"
     runs-on: ubuntu-latest
-    environment: gcp-production   # requires manual approval in GitHub
+    environment: gcp-production
+    defaults:
+      run:
+        working-directory: ${{ inputs.module == 'enterprise-demo' && 'examples/enterprise-demo' || '.' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -43,45 +46,31 @@ jobs:
         with:
           terraform_version: "1.7"
 
-      - name: Select module dir
-        run: |
-          if [ "${{ inputs.module }}" = "enterprise-demo" ]; then
-            echo "TF_DIR=examples/enterprise-demo" >> $GITHUB_ENV
-          else
-            echo "TF_DIR=." >> $GITHUB_ENV
-          fi
-
       - name: Terraform Init
         run: terraform init
-        working-directory: ${{ env.TF_DIR }}
 
-      - name: Terraform Plan (targeted)
+      - name: Terraform Plan
         run: terraform plan -target="${{ inputs.target }}" -out=tfplan
-        working-directory: ${{ env.TF_DIR }}
 
-      - name: Terraform Import (if resource exists)
+      - name: Import existing resources (avoids 409 on re-apply)
         if: inputs.action == 'apply'
         continue-on-error: true
-        working-directory: ${{ env.TF_DIR }}
         run: |
-          # Import known pre-existing resources into state to avoid 409 errors
-          if [ "${{ inputs.target }}" = "google_service_account.demo_agent" ]; then
-            terraform import google_service_account.demo_agent \
-              projects/soulmate-489217/serviceAccounts/soulmate-demo-agent@soulmate-489217.iam.gserviceaccount.com || true
-          fi
+          case "${{ inputs.target }}" in
+            google_service_account.demo_agent)
+              terraform import google_service_account.demo_agent \
+                projects/soulmate-489217/serviceAccounts/soulmate-demo-agent@soulmate-489217.iam.gserviceaccount.com
+              ;;
+          esac
 
-      - name: Terraform Re-Plan after Import
+      - name: Terraform Re-Plan (after import)
         if: inputs.action == 'apply'
-        working-directory: ${{ env.TF_DIR }}
         run: terraform plan -target="${{ inputs.target }}" -out=tfplan
 
-      - name: Terraform Apply (targeted)
+      - name: Terraform Apply
         if: inputs.action == 'apply'
-        working-directory: ${{ env.TF_DIR }}
         run: terraform apply -target="${{ inputs.target }}" -auto-approve tfplan
-        working-directory: ${{ env.TF_DIR }}
 
-      - name: Terraform Destroy (targeted)
+      - name: Terraform Destroy
         if: inputs.action == 'destroy'
         run: terraform destroy -target="${{ inputs.target }}" -auto-approve
-        working-directory: ${{ env.TF_DIR }}
