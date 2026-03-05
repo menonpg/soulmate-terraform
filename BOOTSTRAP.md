@@ -30,6 +30,20 @@ Click **Enable** → wait 60 seconds.
 
 **Status: ✅ Done (2026-03-05)**
 
+### Also enable manually (same reason — bootstrap APIs):
+
+👉 [Enable IAM API](https://console.developers.google.com/apis/api/iam.googleapis.com/overview?project=315394193472)
+
+👉 [Enable Service Usage API](https://console.developers.google.com/apis/api/serviceusage.googleapis.com/overview?project=315394193472)
+
+👉 [Enable Cloud Run API](https://console.developers.google.com/apis/api/run.googleapis.com/overview?project=315394193472)
+
+👉 [Enable BigQuery API](https://console.developers.google.com/apis/api/bigquery.googleapis.com/overview?project=315394193472)
+
+Enable all of these before running any Terraform. Saves multiple retry cycles.
+
+**Status: ✅ Done (2026-03-05)**
+
 ---
 
 ## Step 2 — Grant Service Account Permissions (manual)
