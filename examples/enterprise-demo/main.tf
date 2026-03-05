@@ -122,7 +122,7 @@ resource "google_cloud_run_v2_service" "analyst_agent" {
       }
       env {
         name  = "COMMS_AGENT_URL"
-        value = "https://soulmate-comms-${var.project_id}.run.app"
+        value = "https://soulmate-comms-hvky63ls3a-uc.a.run.app"
       }
     }
   }
@@ -203,3 +203,4 @@ output "api_url"     { value = google_cloud_run_v2_service.soulmate_api.uri }
 output "analyst_url" { value = google_cloud_run_v2_service.analyst_agent.uri }
 output "comms_url"   { value = google_cloud_run_v2_service.comms_agent.uri }
 output "bq_dataset"  { value = google_bigquery_dataset.demo.dataset_id }
+
