@@ -44,6 +44,25 @@ Enable all of these before running any Terraform. Saves multiple retry cycles.
 
 **Status: ✅ Done (2026-03-05)**
 
+
+---
+
+## Step 1b — Create Terraform State Bucket (manual, required)
+
+Without a state backend, Terraform forgets what it's already created and
+tries to recreate resources on every run — causing "already exists" errors.
+
+1. Go to [Cloud Storage](https://console.cloud.google.com/storage/browser?project=soulmate-489217) → **Create bucket**
+2. Name: `soulmate-terraform-state`
+3. Region: `us-central1`
+4. Access: uniform, no public access
+5. Everything else default → **Create**
+
+**Status: ⏳ Pending**
+
+Then the `backend.tf` in this repo will automatically use it for state storage.
+All "already exists" errors disappear once state is working.
+
 ---
 
 ## Step 2 — Grant Service Account Permissions (manual)
