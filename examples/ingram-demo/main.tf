@@ -1,20 +1,3 @@
-# ── SoulMate × Ingram Micro — Live Demo Infrastructure ───────────────────────
-#
-# What this deploys (one resource at a time via GitHub Actions):
-#
-#   1. google_cloud_run_v2_service.soulmate_api   — core API
-#   2. google_cloud_run_v2_service.analyst_agent  — SQL + BigQuery agent
-#   3. google_cloud_run_v2_service.comms_agent    — email summary agent
-#   4. google_bigquery_dataset.demo               — sample sales data
-#   5. google_bigquery_table.sales                — Q4 sales table
-#
-# Frontend: soulmate.thinkcreateai.com/demo/ (GitHub Pages, calls these APIs)
-# Demo flow:
-#   User asks "How did Q4 sales trend?"
-#   → Router → Analyst Agent (Gemma 2B SQL gen) → BigQuery
-#   → A2A handoff → Comms Agent (Gemini reasoning) → email draft
-#   → Results back to UI
-
 terraform {
   required_version = ">= 1.5"
   required_providers {
@@ -27,65 +10,75 @@ provider "google" {
   region  = var.region
 }
 
-# ── Variables ─────────────────────────────────────────────────────────────────
+variable "project_id"    { default = "soulmate-489217" }
+variable "region"        { default = "us-central1" }
+variable "anthropic_key" { sensitive = true }
+variable "demo_image"    { default = "pgmenon/soulmate-api:latest" }
 
-variable "project_id"     { default = "soulmate-489217" }
-variable "region"         { default = "us-central1" }
-variable "anthropic_key"  { sensitive = true }
-variable "demo_image"     { default = "pgmenon/soulmate-api:latest" }
-
-# ── Enable APIs (one-time, safe to apply all at once) ─────────────────────────
+# ── Step 1: Enable APIs ───────────────────────────────────────────────────────
 
 resource "google_project_service" "apis" {
-  for_each = toset([
-    "run.googleapis.com",
-    "bigquery.googleapis.com",
-    "aiplatform.googleapis.com",
-  ])
+  for_each           = toset(["run.googleapis.com","bigquery.googleapis.com","aiplatform.googleapis.com"])
   service            = each.key
   disable_on_destroy = false
 }
 
-# ── Service Account for demo agents ───────────────────────────────────────────
+# ── Step 2: Service Account ───────────────────────────────────────────────────
 
 resource "google_service_account" "demo_agent" {
   account_id   = "soulmate-demo-agent"
   display_name = "SoulMate Demo Agent SA"
 }
 
-resource "google_project_iam_member" "bigquery_user" {
+resource "google_project_iam_member" "bq_user" {
   project = var.project_id
   role    = "roles/bigquery.user"
   member  = "serviceAccount:${google_service_account.demo_agent.email}"
 }
 
-resource "google_project_iam_member" "bigquery_data_viewer" {
+resource "google_project_iam_member" "bq_viewer" {
   project = var.project_id
   role    = "roles/bigquery.dataViewer"
   member  = "serviceAccount:${google_service_account.demo_agent.email}"
 }
 
-# ── Step 1: SoulMate API (core) ───────────────────────────────────────────────
+# ── Step 3: SoulMate API ──────────────────────────────────────────────────────
 
 resource "google_cloud_run_v2_service" "soulmate_api" {
-  name     = "soulmate-api"
-  location = var.region
-  ingress  = "INGRESS_TRAFFIC_ALL"
+  name       = "soulmate-api"
+  location   = var.region
+  ingress    = "INGRESS_TRAFFIC_ALL"
   depends_on = [google_project_service.apis]
 
   template {
     service_account = google_service_account.demo_agent.email
+
+    scaling {
+      min_instance_count = 0
+      max_instance_count = 3
+    }
+
     containers {
       image = var.demo_image
-      env { name = "ANTHROPIC_API_KEY", value = var.anthropic_key }
-      env { name = "SOUL_LEGACY_MODE",  value = "cloud" }
-      resources { limits = { cpu = "1", memory = "512Mi" } }
+
+      resources {
+        limits = { cpu = "1", memory = "512Mi" }
+      }
+
+      env {
+        name  = "ANTHROPIC_API_KEY"
+        value = var.anthropic_key
+      }
+      env {
+        name  = "SOUL_LEGACY_MODE"
+        value = "cloud"
+      }
+
       liveness_probe {
         http_get { path = "/health" }
         initial_delay_seconds = 10
       }
     }
-    scaling { min_instance_count = 0, max_instance_count = 3 }
   }
 }
 
@@ -96,25 +89,42 @@ resource "google_cloud_run_v2_service_iam_member" "api_public" {
   member   = "allUsers"
 }
 
-# ── Step 2: Analyst Agent ─────────────────────────────────────────────────────
+# ── Step 4: Analyst Agent ─────────────────────────────────────────────────────
 
 resource "google_cloud_run_v2_service" "analyst_agent" {
-  name     = "soulmate-analyst"
-  location = var.region
-  ingress  = "INGRESS_TRAFFIC_ALL"
+  name       = "soulmate-analyst"
+  location   = var.region
+  ingress    = "INGRESS_TRAFFIC_ALL"
   depends_on = [google_project_service.apis]
 
   template {
     service_account = google_service_account.demo_agent.email
+
+    scaling {
+      min_instance_count = 0
+      max_instance_count = 3
+    }
+
     containers {
       image = "pgmenon/soulmate-analyst:latest"
-      env { name = "ANTHROPIC_API_KEY",  value = var.anthropic_key }
-      env { name = "GCP_PROJECT",        value = var.project_id }
-      env { name = "COMMS_AGENT_URL",
-            value = "https://soulmate-comms-${var.project_id}.run.app" }
-      resources { limits = { cpu = "1", memory = "512Mi" } }
+
+      resources {
+        limits = { cpu = "1", memory = "512Mi" }
+      }
+
+      env {
+        name  = "ANTHROPIC_API_KEY"
+        value = var.anthropic_key
+      }
+      env {
+        name  = "GCP_PROJECT"
+        value = var.project_id
+      }
+      env {
+        name  = "COMMS_AGENT_URL"
+        value = "https://soulmate-comms-${var.project_id}.run.app"
+      }
     }
-    scaling { min_instance_count = 0, max_instance_count = 3 }
   }
 }
 
@@ -125,22 +135,34 @@ resource "google_cloud_run_v2_service_iam_member" "analyst_public" {
   member   = "allUsers"
 }
 
-# ── Step 3: Comms Agent ───────────────────────────────────────────────────────
+# ── Step 5: Comms Agent ───────────────────────────────────────────────────────
 
 resource "google_cloud_run_v2_service" "comms_agent" {
-  name     = "soulmate-comms"
-  location = var.region
-  ingress  = "INGRESS_TRAFFIC_ALL"
+  name       = "soulmate-comms"
+  location   = var.region
+  ingress    = "INGRESS_TRAFFIC_ALL"
   depends_on = [google_project_service.apis]
 
   template {
     service_account = google_service_account.demo_agent.email
+
+    scaling {
+      min_instance_count = 0
+      max_instance_count = 3
+    }
+
     containers {
       image = "pgmenon/soulmate-comms:latest"
-      env { name = "ANTHROPIC_API_KEY", value = var.anthropic_key }
-      resources { limits = { cpu = "1", memory = "512Mi" } }
+
+      resources {
+        limits = { cpu = "1", memory = "512Mi" }
+      }
+
+      env {
+        name  = "ANTHROPIC_API_KEY"
+        value = var.anthropic_key
+      }
     }
-    scaling { min_instance_count = 0, max_instance_count = 3 }
   }
 }
 
@@ -151,7 +173,7 @@ resource "google_cloud_run_v2_service_iam_member" "comms_public" {
   member   = "allUsers"
 }
 
-# ── Step 4 + 5: BigQuery demo dataset + sales table ──────────────────────────
+# ── Step 6+7: BigQuery dataset + sales table ──────────────────────────────────
 
 resource "google_bigquery_dataset" "demo" {
   dataset_id    = "soulmate_demo"
@@ -161,23 +183,23 @@ resource "google_bigquery_dataset" "demo" {
 }
 
 resource "google_bigquery_table" "sales" {
-  dataset_id = google_bigquery_dataset.demo.dataset_id
-  table_id   = "q4_sales"
+  dataset_id          = google_bigquery_dataset.demo.dataset_id
+  table_id            = "q4_sales"
   deletion_protection = false
 
   schema = jsonencode([
-    { name = "date",        type = "DATE",    mode = "REQUIRED" },
-    { name = "region",      type = "STRING",  mode = "REQUIRED" },
-    { name = "product",     type = "STRING",  mode = "REQUIRED" },
-    { name = "revenue",     type = "FLOAT64", mode = "REQUIRED" },
-    { name = "units_sold",  type = "INTEGER", mode = "REQUIRED" },
-    { name = "partner_id",  type = "STRING",  mode = "NULLABLE" },
+    { name = "date",       type = "DATE",    mode = "REQUIRED" },
+    { name = "region",     type = "STRING",  mode = "REQUIRED" },
+    { name = "product",    type = "STRING",  mode = "REQUIRED" },
+    { name = "revenue",    type = "FLOAT64", mode = "REQUIRED" },
+    { name = "units_sold", type = "INTEGER", mode = "REQUIRED" },
+    { name = "partner_id", type = "STRING",  mode = "NULLABLE" },
   ])
 }
 
 # ── Outputs ───────────────────────────────────────────────────────────────────
 
-output "api_url"      { value = google_cloud_run_v2_service.soulmate_api.uri }
-output "analyst_url"  { value = google_cloud_run_v2_service.analyst_agent.uri }
-output "comms_url"    { value = google_cloud_run_v2_service.comms_agent.uri }
-output "bq_dataset"   { value = google_bigquery_dataset.demo.dataset_id }
+output "api_url"     { value = google_cloud_run_v2_service.soulmate_api.uri }
+output "analyst_url" { value = google_cloud_run_v2_service.analyst_agent.uri }
+output "comms_url"   { value = google_cloud_run_v2_service.comms_agent.uri }
+output "bq_dataset"  { value = google_bigquery_dataset.demo.dataset_id }
